@@ -89,7 +89,7 @@ class AffanPayService
                     'customer_name' => $order->customer_name,
                     'customer_email' => $order->customer_email,
                     'customer_phone' => $order->customer_phone,
-                    'redirect_url' => url('/orders/' . $order->id),
+                    'redirect_url' => route('orders.show', $order),
                     'callback_url' => route('webhook.affanpay.api', $this->webhookCallbackParameters()),
                 ]);
 

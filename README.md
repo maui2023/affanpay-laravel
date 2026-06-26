@@ -1,58 +1,397 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AffanPay Laravel Guide
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Panduan Laravel ini disediakan untuk pengguna payment gateway AffanPay yang mahu membina aliran pembayaran lengkap menggunakan Laravel.
 
-## About Laravel
+Projek ini ialah demo rujukan yang menunjukkan bagaimana untuk:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- bina produk dan order
+- cipta bill di AffanPay
+- redirect pelanggan ke halaman pembayaran AffanPay
+- terima webhook pembayaran
+- semak semula status bayaran secara selamat
+- paparkan status bayaran secara automatik tanpa refresh manual
+- harden aplikasi sebelum diterbitkan ke GitHub atau production
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Objektif Projek
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Repositori ini bertindak sebagai starter guide dan contoh integrasi untuk:
 
-## Learning Laravel
+- `Laravel + AffanPay bill creation`
+- `return URL + webhook verification`
+- `payment status tracking`
+- `basic admin configuration`
+- `security hardening`
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Ia sesuai dijadikan rujukan oleh:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- pembangun Laravel yang baru hendak integrasi AffanPay
+- merchant atau team teknikal yang mahu faham flow pembayaran
+- pasukan yang mahu publish kod contoh ke GitHub dengan amalan keselamatan yang lebih baik
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Teknologi Digunakan
 
-## Agentic Development
+- PHP
+- Laravel
+- SQLite untuk demo
+- Tailwind CSS melalui CDN
+- AffanPay API
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Apa Yang Sudah Dibuat
+
+Antara fungsi utama yang sudah tersedia dalam projek ini:
+
+- senarai produk dan paparan produk
+- borang pembelian dan penciptaan order
+- penciptaan bill AffanPay melalui API
+- redirect pelanggan ke URL bayaran AffanPay
+- simpan `bill reference` dan `payment reference`
+- webhook endpoint untuk update status bayaran
+- semakan status bill melalui API AffanPay
+- auto polling status pada halaman order
+- animasi live transfer `A -> B` semasa pembayaran sedang diproses
+- admin panel untuk simpan credential sandbox dan live
+- webhook alias di:
+  - `POST /api/v1/payments/webhook`
+  - `POST /webhook/affanpay`
+
+## Payment Flow
+
+Flow pembayaran dalam projek ini adalah seperti berikut:
+
+1. Pelanggan pilih produk.
+2. Pelanggan isi maklumat pembelian.
+3. Sistem cipta `order` dan `payment` dalam database.
+4. Sistem panggil API AffanPay untuk `create bill`.
+5. AffanPay pulangkan:
+   - `bill id`
+   - `payment URL`
+6. Pelanggan di-redirect ke halaman pembayaran AffanPay.
+7. Selepas pelanggan bayar:
+   - AffanPay redirect pelanggan balik ke halaman order
+   - AffanPay hantar webhook ke endpoint aplikasi
+8. Aplikasi verify status semula melalui API AffanPay.
+9. Status order dikemas kini ke:
+   - `paid`
+   - `processing`
+   - `failed`
+10. Halaman order auto-refresh status secara berkala tanpa perlu klik manual.
+
+## Return, Webhook Dan Status Verification
+
+Dalam implementasi ini:
+
+- `return URL` tidak dianggap sebagai sumber kebenaran utama
+- `webhook` ialah sumber utama untuk update status asynchronous
+- `requery/status check` digunakan sebagai verification tambahan
+
+Ini penting kerana redirect pelanggan sahaja tidak cukup untuk membuktikan bayaran benar-benar berjaya.
+
+Pendekatan yang digunakan sekarang:
+
+- return page hanya menjadi signal bahawa pelanggan telah pulang
+- aplikasi akan panggil status API AffanPay untuk semak status sebenar
+- webhook akan update status order apabila callback diterima
+
+## Rujukan Pembayaran
+
+Projek ini membezakan dua rujukan utama:
+
+- `bill reference`
+  - contoh: ID bill yang dikeluarkan semasa create bill
+- `payment reference`
+  - contoh: rujukan transaksi bayaran sebenar daripada AffanPay
+
+Keutamaan semakan status:
+
+1. `payment_reference`
+2. `bill_reference`
+3. `external_ref` sebagai fallback dalaman
+
+## Endpoint Penting
+
+### Public
+
+- `GET /`
+- `GET /products`
+- `GET /products/{product}`
+- `GET /orders/{public_token}`
+- `GET /orders/{public_token}/status`
+- `POST /orders/{public_token}/retry-payment`
+- `POST /orders/{public_token}/check-status`
+
+### Admin
+
+- `GET /admin`
+- `POST /admin/switch-environment`
+- `POST /admin/save-credentials`
+
+### Webhook
+
+- `GET /api/v1/payments/webhook`
+- `POST /api/v1/payments/webhook`
+- `POST /webhook/affanpay`
+
+## Keselamatan Yang Sudah Diperketatkan
+
+Sebelum publish ke GitHub, beberapa hardening telah dibuat berdasarkan amalan Laravel, PSR, OWASP dan prinsip cybersecurity umum.
+
+### 1. Webhook security
+
+- webhook dikecualikan daripada CSRF kerana ia dipanggil oleh pihak ketiga
+- sebagai ganti, webhook kini memerlukan `shared secret`
+- secret boleh dihantar melalui:
+  - query param `token`
+  - header `X-AffanPay-Webhook-Secret`
+  - bearer token
+- webhook request akan ditolak jika secret tidak sah dalam environment bukan local/testing
+
+### 2. Admin protection
+
+- route `/admin` dilindungi dengan Basic Auth
+- admin turut dikenakan rate limit
+
+### 3. Secret handling
+
+- password credential AffanPay disimpan secara encrypted dalam table `settings`
+- admin UI tidak lagi memaparkan password tersimpan
+- pengguna hanya memasukkan password baru jika mahu rotate secret
+
+### 4. Secure defaults
+
+Dalam `.env.example`:
+
+- `APP_DEBUG=false`
+- `LOG_LEVEL=warning`
+- `SESSION_ENCRYPT=true`
+- `APP_KEY` tidak diletakkan dalam repo
+
+### 5. Logging hardening
+
+- log tidak lagi menyimpan full credential response
+- log tidak lagi mendedahkan password
+- log webhook dipermudahkan supaya kurang kebocoran data sensitif
+
+### 6. Public order URL hardening
+
+- akses order pelanggan tidak lagi menggunakan numeric ID yang mudah diteka
+- aplikasi kini menggunakan `public_token` berbentuk UUID
+- URL lama seperti `/orders/24` tidak lagi membuka order
+
+### 7. Security headers
+
+Header tambahan telah diperkenalkan:
+
+- `X-Frame-Options`
+- `X-Content-Type-Options`
+- `Referrer-Policy`
+- `Permissions-Policy`
+- `Strict-Transport-Security` apabila request melalui HTTPS
+
+### 8. Rate limiting
+
+Rate limit digunakan pada:
+
+- admin routes
+- webhook routes
+- live order status polling endpoint
+
+## Setup Tempatan
+
+### 1. Clone repositori
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <repo-url>
+cd affanpay-laravel
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Pasang dependency
 
-## Contributing
+```bash
+composer install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 3. Sediakan environment
 
-## Code of Conduct
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 4. Semak nilai penting dalam `.env`
 
-## Security Vulnerabilities
+Contoh minimum:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```env
+APP_NAME=AffanPay
+APP_ENV=local
+APP_DEBUG=false
+APP_URL=http://localhost:8001
 
-## License
+LOG_LEVEL=warning
+SESSION_ENCRYPT=true
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+AFFANPAY_WEBHOOK_SECRET=change-this-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-password
+```
+
+Nota:
+
+- pastikan `APP_URL` sama dengan URL sebenar aplikasi anda
+- jika local server berjalan di `localhost:8001`, tetapkan `APP_URL=http://localhost:8001`
+
+### 5. Sediakan database
+
+```bash
+touch database/database.sqlite
+php artisan migrate
+php artisan db:seed
+```
+
+### 6. Jalankan aplikasi
+
+```bash
+php artisan serve --port=8001
+```
+
+## Konfigurasi AffanPay
+
+Credential AffanPay boleh disimpan melalui halaman admin:
+
+- sandbox email
+- sandbox password
+- live email
+- live password
+
+Aplikasi akan:
+
+- authenticate ke AffanPay melalui token API
+- create bill menggunakan `/api/v1/bill`
+- check bill status menggunakan endpoint bill status
+
+## Callback URL Dan Redirect URL
+
+Semasa create bill, aplikasi akan menghantar:
+
+- `redirect_url`
+- `callback_url`
+- `external_ref`
+
+Pastikan URL production anda sah dan boleh diakses oleh AffanPay.
+
+Contoh callback yang digunakan:
+
+- `/api/v1/payments/webhook`
+
+Jika anda gunakan shared secret webhook, callback sebenar akan membawa token tersebut melalui URL query.
+
+## Admin Access
+
+Admin dikunci menggunakan Basic Auth.
+
+Tetapkan dalam `.env`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=strong-password
+```
+
+Kemudian akses:
+
+- `/admin`
+
+Browser akan meminta username dan password.
+
+## Ujian
+
+Beberapa ujian keselamatan telah ditambah, termasuk:
+
+- order public route menggunakan token rawak
+- webhook perlu secret yang sah
+- admin area memerlukan Basic Auth
+
+Jalankan:
+
+```bash
+php artisan test --filter=SecurityHardeningTest
+```
+
+Untuk jalankan semua test:
+
+```bash
+php artisan test
+```
+
+## Checklist Sebelum Publish Ke GitHub
+
+Sebelum push ke GitHub:
+
+- jangan commit fail `.env`
+- jangan commit `APP_KEY` production
+- rotate mana-mana credential yang pernah terdedah
+- pastikan `APP_DEBUG=false`
+- pastikan `LOG_LEVEL=warning` atau lebih ketat
+- pastikan `AFFANPAY_WEBHOOK_SECRET` telah ditetapkan
+- pastikan `ADMIN_USERNAME` dan `ADMIN_PASSWORD` telah ditetapkan
+- pastikan `APP_URL` menunjuk ke domain sebenar
+- kosongkan log lama jika perlu
+
+Cadangan:
+
+```bash
+php artisan optimize:clear
+rm -f storage/logs/*.log
+```
+
+## Checklist Sebelum Production
+
+- guna HTTPS
+- guna domain sebenar untuk `APP_URL`
+- semak bahawa webhook boleh diakses dari internet
+- whitelist infrastructure yang sesuai jika perlu
+- monitor log error tanpa menyimpan data sensitif
+- semak semula rate limit dan timeout mengikut trafik sebenar
+
+## Limitasi Semasa
+
+Walaupun aplikasi ini sudah jauh lebih selamat, ia masih merupakan demo guide.
+
+Perkara yang boleh dipertingkatkan lagi:
+
+- signed URL yang mempunyai tempoh luput
+- webhook signature verification rasmi jika AffanPay menyokong HMAC/signature
+- CSP header yang lebih ketat
+- audit logging berstruktur
+- role-based admin access menggantikan Basic Auth
+- secret management menggunakan vault atau platform secret manager
+
+## Fail Rujukan Penting
+
+- `app/Services/AffanPayService.php`
+- `app/Http/Controllers/OrderController.php`
+- `app/Http/Controllers/WebhookController.php`
+- `app/Http/Controllers/AdminController.php`
+- `app/Models/Order.php`
+- `app/Models/Setting.php`
+- `routes/web.php`
+- `.env.example`
+- `tests/Feature/SecurityHardeningTest.php`
+
+## Ringkasan
+
+Repositori ini ialah panduan Laravel untuk pengguna payment gateway AffanPay yang mahu memahami integrasi pembayaran end-to-end dengan:
+
+- create bill
+- redirect pelanggan
+- webhook callback
+- requery status
+- auto tracking UI
+- hardening keselamatan sebelum publish
+
+Jika anda mahu gunakan repositori ini sebagai asas production, disarankan untuk teruskan dengan:
+
+- signed URL
+- production HTTPS enforcement
+- secret rotation policy
+- deployment checklist
+- security review akhir sebelum go-live
